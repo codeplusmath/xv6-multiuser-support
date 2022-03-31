@@ -38,7 +38,7 @@ void wsect(uint, void*);
 void winode(uint, struct dinode*);
 void rinode(uint inum, struct dinode *ip);
 void rsect(uint sec, void *buf);
-uint ialloc(ushort type);
+uint ialloc(ushort type, uint mode); // assigns a disk inode to a newly created file & it requires mode of file
 void iappend(uint inum, void *p, int n);
 
 // convert to intel byte order
@@ -221,7 +221,7 @@ rsect(uint sec, void *buf)
 }
 
 uint
-ialloc(ushort type)
+ialloc(ushort type, uint mode)
 {
   uint inum = freeinode++;
   struct dinode din;
@@ -230,6 +230,8 @@ ialloc(ushort type)
   din.type = xshort(type);
   din.nlink = xshort(1);
   din.size = xint(0);
+  din.uid = xint(0); // To allocate a new inode (for example, when creating a file), xv6 calls ialloc
+  din.mode = xint(mode);
   winode(inum, &din);
   return inum;
 }
