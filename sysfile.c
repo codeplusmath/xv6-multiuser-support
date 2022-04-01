@@ -52,6 +52,38 @@ fdalloc(struct file *f)
   return -1;
 }
 
+// returnig current process's uid
+int
+sys_getuid(void)
+{
+    return myproc()->uid;
+}
+
+//returnig current process's euid
+int
+sys_geteuid(void)
+{
+    return myproc()->euid;
+}
+
+//setting uid to process
+int
+sys_setuid(void)
+{
+    if(myproc()->uid != 0)
+    {
+        return -1;
+    }
+
+    int uid;
+    //fetch the 1st arg that is new uid and store into 2nd variable passed
+    argint(0,&uid);
+
+    myproc()->uid = uid;
+    myproc()->euid = uid;
+
+}
+
 int
 sys_dup(void)
 {
