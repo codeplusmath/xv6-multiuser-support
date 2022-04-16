@@ -205,7 +205,7 @@ ialloc(uint dev, short type, uint uid, uint mode)
       memset(dip, 0, sizeof(*dip));
       dip->type = type;
       dip->uid = uid;	// assign uid & mode to device inode
-      dip->uid = mode
+      dip->mode = mode
       log_write(bp);   // mark it allocated on the disk
       brelse(bp);
       return iget(dev, inum);
