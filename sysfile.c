@@ -85,6 +85,39 @@ sys_setuid(void)
 }
 
 int
+sys_chmod(void){
+    char *path;
+    int mode;
+    struct inode *ip;
+
+    if(argstr(0,&path)<0 || argint(1,&mode)<0){
+        return -1;
+    }
+
+    begin_op();
+
+    if((ip=namei(path))==0){
+        end_op();
+        return -1;
+    }
+
+    if(ip->uid != myproc()->uid && myproc()->uid !=0){
+        end_op();
+        return -1;
+    }
+
+    ilock(ip);
+
+    ip->mode =mode;
+
+    iupdate(ip);
+    iunlock(ip);
+    end_op();
+
+    return 0;
+}
+
+int
 sys_dup(void)
 {
   struct file *f;
@@ -474,4 +507,6 @@ sys_pipe(void)
   fd[0] = fd0;
   fd[1] = fd1;
   return 0;
+
 }
+

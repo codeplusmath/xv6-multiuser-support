@@ -23,3 +23,4 @@
 #define SYS_getuid  22 //sys call for getting user id
 #define SYS_geteuid 23 //sys call for getting effective user id
 #define SYS_setuid  24 //sys call for setting user id
+#define SYS_chmod   25

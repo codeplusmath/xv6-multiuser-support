@@ -106,6 +106,7 @@ extern int sys_uptime(void);
 extern int sys_getuid(void); //defining the protypes for sys calls
 extern int sys_geteuid(void); //
 extern int sys_setuid(void);  //
+extern int sys_chmod(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -131,7 +132,8 @@ static int (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_getuid]    sys_getuid,
 [SYS_geteuid]   sys_geteuid,
-[SYS_setuid]    sys_setuid
+[SYS_setuid]    sys_setuid,
+[SYS_chmod]     sys_chmod,
 };
 
 void
