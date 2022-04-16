@@ -271,7 +271,7 @@ bad:
 }
 
 static struct inode*
-create(char *path, short type, short major, short minor)
+create(char *path, short type, short major, short minor, uint uid, uint mode)
 {
   struct inode *ip, *dp;
   char name[DIRSIZ];
@@ -289,7 +289,8 @@ create(char *path, short type, short major, short minor)
     return 0;
   }
 
-  if((ip = ialloc(dp->dev, type)) == 0)
+  // add uid & mode to ialloc function
+  if((ip = ialloc(dp->dev, type, uid, mode)) == 0)
     panic("create: ialloc");
 
   ilock(ip);
@@ -328,7 +329,7 @@ sys_open(void)
   begin_op();
 
   if(omode & O_CREATE){
-    ip = create(path, T_FILE, 0, 0);
+    ip = create(path, T_FILE, 0, 0, myproc()->uid, 0644);
     if(ip == 0){
       end_op();
       return -1;
