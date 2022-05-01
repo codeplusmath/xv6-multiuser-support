@@ -106,6 +106,8 @@ extern int sys_uptime(void);
 extern int sys_getuid(void); //defining the protypes for sys calls
 extern int sys_geteuid(void); //
 extern int sys_setuid(void);  //
+extern int sys_echoswitch(void); //to disable echo 
+extern int sys_chown(void); //
 extern int sys_chmod(void);
 
 static int (*syscalls[])(void) = {
@@ -133,6 +135,8 @@ static int (*syscalls[])(void) = {
 [SYS_getuid]    sys_getuid,
 [SYS_geteuid]   sys_geteuid,
 [SYS_setuid]    sys_setuid,
+[SYS_echoswitch] sys_echoswitch,
+[SYS_chown]      sys_chown,
 [SYS_chmod]     sys_chmod,
 };
 

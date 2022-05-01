@@ -131,6 +131,7 @@ sys_dup(void)
   return fd;
 }
 
+
 int
 sys_read(void)
 {
@@ -509,4 +510,47 @@ sys_pipe(void)
   return 0;
 
 }
+
+int
+sys_chown(void)
+{
+	if (myproc()->uid != 0)
+		return -1;
+
+	char *path;
+	int owner;
+	struct inode *ip;
+
+	if(argstr(0, &path) < 0 || argint(1, &owner) < 0  )
+		return -1;
+
+	begin_op();
+
+	if((ip = namei(path)) == 0) {
+		end_op();
+		return -1;
+	}
+
+	ilock(ip);
+
+	if (owner != -1)
+		ip->uid = owner;
+
+	iupdate(ip);
+	iunlock(ip);
+	end_op();
+	return 0;
+}
+
+
+uint echodisabled;
+
+int
+sys_echoswitch(void)
+{
+	echodisabled = !echodisabled;
+
+	return 0;
+}
+
 
