@@ -553,4 +553,15 @@ sys_echoswitch(void)
 	return 0;
 }
 
+int
+sys_clrscr(void)
+{
+	ushort *crt = (ushort*)P2V(0xb8000);
+	int i;
+
+	for (i = 0; i < 24 * 80; i ++)
+		crt[i] = 0;
+
+	setcp(0, 0);
+}
 

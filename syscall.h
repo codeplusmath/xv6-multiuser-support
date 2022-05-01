@@ -26,3 +26,4 @@
 #define SYS_chmod   25
 #define SYS_echoswitch 26
 #define SYS_chown      27
+#define SYS_clrscr     28

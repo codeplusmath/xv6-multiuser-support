@@ -109,6 +109,7 @@ extern int sys_setuid(void);  //
 extern int sys_echoswitch(void); //to disable echo 
 extern int sys_chown(void); //
 extern int sys_chmod(void);
+extern int sys_clrscr(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -138,6 +139,7 @@ static int (*syscalls[])(void) = {
 [SYS_echoswitch] sys_echoswitch,
 [SYS_chown]      sys_chown,
 [SYS_chmod]     sys_chmod,
+[SYS_clrscr]	 sys_clrscr
 };
 
 void
