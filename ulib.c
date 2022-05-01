@@ -15,6 +15,22 @@ strcpy(char *s, const char *t)
   return os;
 }
 
+char* 
+strstr(char* s, char* substring)
+{
+	while{
+		char *start = s;
+		char *ptrn = substring;
+		while(*s && *ptrn && *s==*ptrn){
+			s++;
+			ptrn++;
+		}
+		if(!*ptrn)return start;
+		s = start + 1;
+	}
+	return 0;
+}
+
 int
 strcmp(const char *p, const char *q)
 {

@@ -30,7 +30,6 @@ int chmod(void);
 int chown(const char*, int);
 int clrscr(void);
 
-
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
@@ -44,6 +43,7 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+char* strstr(char *str, char *substr);
 
 // auth.c
 char* uid_to_user(uint);
