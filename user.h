@@ -27,6 +27,7 @@ int getuid(void);
 int geteuid(void);
 int setuid(int);
 int chmod(void);
+int chown(const char*, int);
 
 // ulib.c
 int stat(const char*, struct stat*);
