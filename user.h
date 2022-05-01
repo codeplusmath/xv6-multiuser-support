@@ -43,10 +43,10 @@ void free(void*);
 int atoi(const char*);
 
 // auth.c
-char* uidtouser(uint);
-uint nextuid();
-uint validateuid(uint);
-int validateuserpass(uint uid, char* pass);
-char* uidtopass(uint);
-uint usertouid(char* name);
-uint passwdlen();
+char* uid_to_user(uint);
+uint next_uid();
+uint validate_uid(uint);
+int validate_user_pass(uint uid, char* pass);
+char* uid_to_pass(uint);
+uint user_to_uid(char* name);
+uint passwd_len();
