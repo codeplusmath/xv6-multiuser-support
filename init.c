@@ -22,8 +22,9 @@ main(void)
 
   if(open("/dev/console", O_RDWR) < 0){
     mknod("/dev/console", 1, 1);
-    open("/dev/console", O_RDWR);
+    chown("/dev/console", 0);
     chmod("/dev/console", 0700);
+    open("/dev/console", O_RDWR);
   }
   dup(0);  // stdout
   dup(0);  // stderr
