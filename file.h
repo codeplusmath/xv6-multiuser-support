@@ -23,6 +23,9 @@ struct inode {
   short nlink;
   uint size;
   uint addrs[NDIRECT+1];
+
+	uint mode;	// mode of file
+	uint uid;	// owner uid of file
 };
 
 // table mapping major device number to

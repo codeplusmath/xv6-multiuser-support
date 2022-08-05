@@ -16,6 +16,14 @@
 #include "file.h"
 #include "fcntl.h"
 
+#define USER_R_BIT   1
+#define USER_W_BIT   2
+#define USER_X_BIT   3
+#define OTHER_R_BIT  7
+#define OTHER_W_BIT  8
+#define OTHER_X_BIT  9
+
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -52,6 +60,71 @@ fdalloc(struct file *f)
   return -1;
 }
 
+// returnig current process's uid
+int
+sys_getuid(void)
+{
+    return myproc()->uid;
+}
+
+//returnig current process's euid
+int
+sys_geteuid(void)
+{
+    return myproc()->euid;
+}
+
+//setting uid to process
+int
+sys_setuid(void)
+{
+    if(myproc()->uid != 0)
+    {
+        return -1;
+    }
+
+    int uid;
+    //fetch the 1st arg that is new uid and store into 2nd variable passed
+    argint(0,&uid);
+
+    myproc()->uid = uid;
+    myproc()->euid = uid;
+
+}
+
+int
+sys_chmod(void){
+    char *path;
+    int mode;
+    struct inode *ip;
+
+    if(argstr(0,&path)<0 || argint(1,&mode)<0){
+        return -1;
+    }
+
+    begin_op();
+
+    if((ip=namei(path))==0){
+        end_op();
+        return -1;
+    }
+
+    if(ip->uid != myproc()->uid && myproc()->uid !=0){
+        end_op();
+        return -1;
+    }
+
+    ilock(ip);
+
+    ip->mode =mode;
+
+    iupdate(ip);
+    iunlock(ip);
+    end_op();
+
+    return 0;
+}
+
 int
 sys_dup(void)
 {
@@ -65,6 +138,7 @@ sys_dup(void)
   filedup(f);
   return fd;
 }
+
 
 int
 sys_read(void)
@@ -239,7 +313,7 @@ bad:
 }
 
 static struct inode*
-create(char *path, short type, short major, short minor)
+create(char *path, short type, short major, short minor, uint uid, uint mode)
 {
   struct inode *ip, *dp;
   char name[DIRSIZ];
@@ -257,7 +331,8 @@ create(char *path, short type, short major, short minor)
     return 0;
   }
 
-  if((ip = ialloc(dp->dev, type)) == 0)
+  // add uid & mode to ialloc function
+  if((ip = ialloc(dp->dev, type, uid, mode)) == 0)
     panic("create: ialloc");
 
   ilock(ip);
@@ -295,42 +370,91 @@ sys_open(void)
 
   begin_op();
 
-  if(omode & O_CREATE){
-    ip = create(path, T_FILE, 0, 0);
-    if(ip == 0){
-      end_op();
-      return -1;
-    }
-  } else {
-    if((ip = namei(path)) == 0){
-      end_op();
-      return -1;
-    }
-    ilock(ip);
-    if(ip->type == T_DIR && omode != O_RDONLY){
-      iunlockput(ip);
-      end_op();
-      return -1;
-    }
-  }
+	if (omode & O_CREATE){
+                ip = create(path, T_FILE, 0, 0, myproc()->uid, 0644);
+                if(ip == 0){
+                        end_op();
+                        return -1;
+                }
+        }
 
-  if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
-    if(f)
-      fileclose(f);
-    iunlockput(ip);
-    end_op();
-    return -1;
-  }
-  iunlock(ip);
-  end_op();
+        if((ip = namei(path)) == 0){
+                end_op();
+                return -1;
+        }
 
-  f->type = FD_INODE;
-  f->ip = ip;
-  f->off = 0;
-  f->readable = !(omode & O_WRONLY);
-  f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
-  return fd;
+        ilock(ip);
+
+        if(ip->type == T_DIR && omode != O_RDONLY){
+                iunlockput(ip);
+                end_op();
+                return -1;
+        }
+
+        int bits[10];
+        integer_to_binary(ip -> mode, 10, bits);
+        int hasperm = 0;
+
+        struct proc *currproc = myproc();
+        int fileowner = ip -> uid == currproc -> euid;
+        int other = (fileowner != 1);
+        int invalid = 0;
+        
+        if (omode == O_RDWR) {
+                if (fileowner) {
+                        if (!bits[USER_R_BIT] || !bits[USER_W_BIT])
+                                invalid = 1;
+                } 
+                else if (other) {
+                        if (!bits[OTHER_R_BIT])
+                                invalid = 1;
+                }
+        } else if (omode == O_RDONLY) {
+                if (fileowner) {
+                        if (!bits[USER_R_BIT])
+                                invalid = 1;
+                } 
+                else if (other) {
+                        if (!bits[OTHER_R_BIT])
+                                invalid = 1;
+                }
+        } else if (omode == O_WRONLY) {
+                if (fileowner) {
+                        if (!bits[USER_W_BIT])
+                                invalid = 1;
+                }
+                else if (other) {
+                        if (!bits[OTHER_W_BIT])
+                                invalid = 1;
+                }
+	}
+
+        // If we're root, invalid is not important
+        invalid = currproc -> euid == 0 ? 0 : invalid;
+
+        if (invalid) {
+                cprintf("%s: Permission denied\n", path);
+                iunlockput(ip);
+                end_op();
+                return -1;
+        }
+
+        if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
+                if(f) fileclose(f);
+                iunlockput(ip);
+                end_op();
+                return -1;
+        }
+        iunlock(ip);
+        end_op();
+        f->type = FD_INODE;
+        f->ip = ip;
+        f->off = 0;
+        f->readable = !(omode & O_WRONLY);
+        f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
+        return fd;
 }
+
 
 int
 sys_mkdir(void)
@@ -351,46 +475,108 @@ sys_mkdir(void)
 int
 sys_mknod(void)
 {
-  struct inode *ip;
-  char *path;
-  int major, minor;
+  struct inode *ip, *parent;
+	char *path;
+	char name[DIRSIZ];
+	int major, minor;
 
-  begin_op();
-  if((argstr(0, &path)) < 0 ||
-     argint(1, &major) < 0 ||
-     argint(2, &minor) < 0 ||
-     (ip = create(path, T_DEV, major, minor)) == 0){
-    end_op();
-    return -1;
-  }
-  iunlockput(ip);
-  end_op();
-  return 0;
-}
+	parent = nameiparent(path, name);
+
+	int bits[10];
+	integer_to_binary(parent -> mode, 10, bits);
+	int hasperm = 0;
+
+	int fileowner = parent -> uid == myproc() -> euid;
+	int groupmember = 0;
+
+	int other = fileowner != 1 && groupmember != 1;
+	int invalid = 0;
+
+	if (fileowner) {
+		if (!bits[USER_W_BIT])
+			invalid = 1;
+	} else if (groupmember) {
+		if (!bits[GROUP_W_BIT])
+			invalid = 1;
+	}
+	else if (other) {
+		if (!bits[OTHER_W_BIT])
+			invalid = 1;
+	}
+
+	// If we're root, invalid is not important
+	invalid = myproc() -> euid == 0 ? 0 : invalid;
+
+	if (invalid) {
+		cprintf("%s: Permission denied\n", path);
+		iunlockput(ip);
+		end_op();
+		return -1;
+	}
+
+	begin_op();
+	if((argstr(0, &path)) < 0 ||
+			argint(1, &major) < 0 ||
+			argint(2, &minor) < 0 ||
+			(ip = create(path, T_DEV, major, minor, myproc()->uid, 0644)) == 0){
+		end_op();
+		return -1;
+	}
+	iunlockput(ip);
+	end_op();
+	return 0;
+}	
 
 int
 sys_chdir(void)
 {
   char *path;
-  struct inode *ip;
-  struct proc *curproc = myproc();
-  
-  begin_op();
-  if(argstr(0, &path) < 0 || (ip = namei(path)) == 0){
-    end_op();
-    return -1;
-  }
-  ilock(ip);
-  if(ip->type != T_DIR){
-    iunlockput(ip);
-    end_op();
-    return -1;
-  }
-  iunlock(ip);
-  iput(curproc->cwd);
-  end_op();
-  curproc->cwd = ip;
-  return 0;
+	struct inode *ip;
+	struct proc *curproc = myproc();
+
+	begin_op();
+	if(argstr(0, &path) < 0 || (ip = namei(path)) == 0){
+		end_op();
+		return -1;
+	}
+	ilock(ip);
+	if(ip->type != T_DIR){
+		iunlockput(ip);
+		end_op();
+		return -1;
+	}
+
+	int bits[10];
+	integer_to_binary(ip -> mode, 10, bits);
+	int hasperm = 0;
+
+	int fileowner = ip -> uid == curproc -> euid;
+	int other = fileowner != 1;
+	int invalid = 0;
+	if (fileowner) {
+		if (!bits[USER_X_BIT])
+			invalid = 1;
+	} 
+	else if (other) {
+		if (!bits[OTHER_X_BIT])
+			invalid = 1;
+	}
+
+	// If we're root, invalid is not important
+	invalid = curproc -> euid == 0 ? 0 : invalid;
+
+	if (invalid) {
+		cprintf("%s: Permission denied\n", path);
+		iunlockput(ip);
+		end_op();
+		return -1;
+	}
+
+	iunlock(ip);
+	iput(curproc->cwd);
+	end_op();
+	curproc->cwd = ip;
+	return 0;
 }
 
 int
@@ -441,4 +627,60 @@ sys_pipe(void)
   fd[0] = fd0;
   fd[1] = fd1;
   return 0;
+
 }
+
+int
+sys_chown(void)
+{
+	if (myproc()->uid != 0)
+		return -1;
+
+	char *path;
+	int owner;
+	struct inode *ip;
+
+	if(argstr(0, &path) < 0 || argint(1, &owner) < 0  )
+		return -1;
+
+	begin_op();
+
+	if((ip = namei(path)) == 0) {
+		end_op();
+		return -1;
+	}
+
+	ilock(ip);
+
+	if (owner != -1)
+		ip->uid = owner;
+
+	iupdate(ip);
+	iunlock(ip);
+	end_op();
+	return 0;
+}
+
+
+uint echodisabled;
+
+int
+sys_echoswitch(void)
+{
+	echodisabled = !echodisabled;
+
+	return 0;
+}
+
+int
+sys_clrscr(void)
+{
+	ushort *crt = (ushort*)P2V(0xb8000);
+	int i;
+
+	for (i = 0; i < 24 * 80; i ++)
+		crt[i] = 0;
+
+	setcp(0, 0);
+}
+

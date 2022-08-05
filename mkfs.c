@@ -17,6 +17,9 @@
 
 #define NINODES 200
 
+//Default mode for file inode i.e. read, write & execute for everyone
+#define DEFAULT_MODE 0777
+
 // Disk layout:
 // [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
 
@@ -32,13 +35,21 @@ char zeroes[BSIZE];
 uint freeinode = 1;
 uint freeblock;
 
+// gloabal inode variables for directries
+uint root_inode_no;
+uint dev_inode_no;
+uint bin_inode_no;
+uint home_inode_no;
+uint super_user_inode_no;
+uint etc_inode_no;
+
 
 void balloc(int);
 void wsect(uint, void*);
 void winode(uint, struct dinode*);
 void rinode(uint inum, struct dinode *ip);
 void rsect(uint sec, void *buf);
-uint ialloc(ushort type);
+uint ialloc(ushort type, uint mode); // assigns a disk inode to a newly created file & it requires mode of file
 void iappend(uint inum, void *p, int n);
 
 // convert to intel byte order
@@ -64,14 +75,129 @@ xint(uint x)
   return y;
 }
 
+// create required default directories with all permisions
+void
+make_directories(void)
+{
+	struct dirent dr;
+
+	// for mount point directory i.e. /
+	// ROOTINO is 1
+	root_inode_no = ialloc(T_DIR, DEFAULT_MODE);
+	assert(root_inode_no == ROOTINO);
+	
+	// writes 0 to inode
+	bzero(&dr, sizeof(dr));
+	dr.inum = xshort(root_inode_no);
+	strcpy(dr.name, ".");
+	iappend(root_inode_no, &dr, sizeof(dr));
+
+	bzero(&dr, sizeof(dr));
+        dr.inum = xshort(root_inode_no);
+        strcpy(dr.name, "..");
+        iappend(root_inode_no, &dr, sizeof(dr));
+
+	// for dev directory i.e. /dev
+	dev_inode_no = ialloc(T_DIR, DEFAULT_MODE);
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(dev_inode_no);
+        strcpy(dr.name, ".");
+        iappend(dev_inode_no, &dr, sizeof(dr));
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(root_inode_no);
+        strcpy(dr.name, "..");
+        iappend(dev_inode_no, &dr, sizeof(dr));
+
+	bzero(&dr, sizeof(dr));
+        dr.inum = xshort(dev_inode_no);
+        strcpy(dr.name, "dev");
+        iappend(root_inode_no, &dr, sizeof(dr));
+
+
+	// for bin directory i.e. /bin
+        bin_inode_no = ialloc(T_DIR, DEFAULT_MODE);
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(bin_inode_no);
+        strcpy(dr.name, ".");
+        iappend(bin_inode_no, &dr, sizeof(dr));
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(root_inode_no);
+        strcpy(dr.name, "..");
+        iappend(bin_inode_no, &dr, sizeof(dr));
+	
+	bzero(&dr, sizeof(dr));
+        dr.inum = xshort(bin_inode_no);
+        strcpy(dr.name, "bin");
+        iappend(root_inode_no, &dr, sizeof(dr));
+
+	// for home directory i.e. /home
+        home_inode_no = ialloc(T_DIR, DEFAULT_MODE);
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(home_inode_no);
+        strcpy(dr.name, ".");
+        iappend(home_inode_no, &dr, sizeof(dr));
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(root_inode_no);
+        strcpy(dr.name, "..");
+        iappend(home_inode_no, &dr, sizeof(dr));
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(home_inode_no);
+        strcpy(dr.name, "home");
+        iappend(root_inode_no, &dr, sizeof(dr));
+
+	// for root user root directory i.e. /root
+        super_user_inode_no = ialloc(T_DIR, DEFAULT_MODE);
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(super_user_inode_no);
+        strcpy(dr.name, ".");
+        iappend(super_user_inode_no, &dr, sizeof(dr));
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(home_inode_no);
+        strcpy(dr.name, "..");
+        iappend(super_user_inode_no, &dr, sizeof(dr));
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(super_user_inode_no);
+        strcpy(dr.name, "root");
+        iappend(home_inode_no, &dr, sizeof(dr));
+
+	// for etc directory i.e. /etc
+        etc_inode_no = ialloc(T_DIR, DEFAULT_MODE);
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(etc_inode_no);
+        strcpy(dr.name, ".");
+        iappend(etc_inode_no, &dr, sizeof(dr));
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(root_inode_no);
+        strcpy(dr.name, "..");
+        iappend(etc_inode_no, &dr, sizeof(dr));
+
+        bzero(&dr, sizeof(dr));
+        dr.inum = xshort(etc_inode_no);
+        strcpy(dr.name, "etc");
+        iappend(root_inode_no, &dr, sizeof(dr));
+}
+
+
 int
 main(int argc, char *argv[])
 {
   int i, cc, fd;
-  uint rootino, inum, off;
+  uint dir_inode_no, inum;
   struct dirent de;
   char buf[BSIZE];
-  struct dinode din;
+  char * short_name;
 
 
   static_assert(sizeof(int) == 4, "Integers must be 4 bytes!");
@@ -82,8 +208,9 @@ main(int argc, char *argv[])
   }
 
   assert((BSIZE % sizeof(struct dinode)) == 0);
-  assert((BSIZE % sizeof(struct dirent)) == 0);
+  assert((BSIZE % sizeof(struct dirent)) == 0);	
 
+  // read & write permissions
   fsfd = open(argv[1], O_RDWR|O_CREAT|O_TRUNC, 0666);
   if(fsfd < 0){
     perror(argv[1]);
@@ -114,20 +241,15 @@ main(int argc, char *argv[])
   memmove(buf, &sb, sizeof(sb));
   wsect(1, buf);
 
-  rootino = ialloc(T_DIR);
-  assert(rootino == ROOTINO);
-
-  bzero(&de, sizeof(de));
-  de.inum = xshort(rootino);
-  strcpy(de.name, ".");
-  iappend(rootino, &de, sizeof(de));
-
-  bzero(&de, sizeof(de));
-  de.inum = xshort(rootino);
-  strcpy(de.name, "..");
-  iappend(rootino, &de, sizeof(de));
-
+  make_directories();
+  
   for(i = 2; i < argc; i++){
+	// skipping 'user'
+	if(strncmp(argv[i], "user/", 5) == 0) 
+		short_name = argv[i] + 5;
+	else
+		short_name = argv[i];
+
     assert(index(argv[i], '/') == 0);
 
     if((fd = open(argv[i], 0)) < 0){
@@ -139,15 +261,21 @@ main(int argc, char *argv[])
     // The binaries are named _rm, _cat, etc. to keep the
     // build operating system from trying to execute them
     // in place of system binaries like rm and cat.
-    if(argv[i][0] == '_')
-      ++argv[i];
+    if(short_name[0] == '_'){
+	// all binaries get copied to /bin & other to /home
+    	short_name = short_name + 1;
+	dir_inode_no = bin_inode_no;
+    }
+    else if(strncmp(argv[i], "passwd", 6) == 0){
+    	dir_inode_no = etc_inode_no;
+    }
 
-    inum = ialloc(T_FILE);
+    inum = ialloc(T_FILE, dir_inode_no == etc_inode_no ? 0644: DEFAULT_MODE);
 
     bzero(&de, sizeof(de));
     de.inum = xshort(inum);
-    strncpy(de.name, argv[i], DIRSIZ);
-    iappend(rootino, &de, sizeof(de));
+    strncpy(de.name, short_name, DIRSIZ);
+    iappend(dir_inode_no, &de, sizeof(de));
 
     while((cc = read(fd, buf, sizeof(buf))) > 0)
       iappend(inum, buf, cc);
@@ -155,15 +283,7 @@ main(int argc, char *argv[])
     close(fd);
   }
 
-  // fix size of root inode dir
-  rinode(rootino, &din);
-  off = xint(din.size);
-  off = ((off/BSIZE) + 1) * BSIZE;
-  din.size = xint(off);
-  winode(rootino, &din);
-
   balloc(freeblock);
-
   exit(0);
 }
 
@@ -221,7 +341,7 @@ rsect(uint sec, void *buf)
 }
 
 uint
-ialloc(ushort type)
+ialloc(ushort type, uint mode)
 {
   uint inum = freeinode++;
   struct dinode din;
@@ -230,6 +350,8 @@ ialloc(ushort type)
   din.type = xshort(type);
   din.nlink = xshort(1);
   din.size = xint(0);
+  din.uid = xint(0); // To allocate a new inode (for example, when creating a file), xv6 calls ialloc
+  din.mode = xint(mode);
   winode(inum, &din);
   return inum;
 }

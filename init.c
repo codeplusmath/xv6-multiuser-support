@@ -12,9 +12,19 @@ main(void)
 {
   int pid, wpid;
 
-  if(open("console", O_RDWR) < 0){
-    mknod("console", 1, 1);
-    open("console", O_RDWR);
+  if(getpid() != 1){
+  	fprintf(2, "init: process already running");
+	exit();
+  }
+  
+  setuid(0);
+
+
+  if(open("/dev/console", O_RDWR) < 0){
+    mknod("/dev/console", 1, 1);
+    chown("/dev/console", 0);
+    chmod("/dev/console", 0700);
+    open("/dev/console", O_RDWR);
   }
   dup(0);  // stdout
   dup(0);  // stderr

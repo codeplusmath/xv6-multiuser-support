@@ -23,6 +23,12 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int getuid(void);
+int geteuid(void);
+int setuid(int);
+int chmod(void);
+int chown(const char*, int);
+int clrscr(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -37,3 +43,13 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+char* strstr(char *str, char *substr);
+
+// auth.c
+char* uid_to_user(uint);
+uint next_uid();
+uint validate_uid(uint);
+int validate_user_pass(uint uid, char* pass);
+char* uid_to_pass(uint);
+uint user_to_uid(char* name);
+uint passwd_len();

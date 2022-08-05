@@ -181,6 +181,14 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
+	_gettty\
+	_useradd\
+	_chown\
+	_chmod\
+	_id\
+	_whoami\
+	 
+	
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
